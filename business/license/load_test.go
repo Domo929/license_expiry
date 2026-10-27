@@ -137,7 +137,7 @@ func TestLoadRules(t *testing.T) {
 			wantLicenses:   1,
 			wantRejected:   []int{},
 			wantWarnings:   []int{0},
-			wantWarning:    "provider 1111111111 is Ada Lovelace, but this record says Grace Hopper; the first name stays",
+			wantWarning:    "provider 1111111111 has a different name in this record; the name of the first record stays",
 			wantExpiration: "2027-06-01",
 		},
 		{
@@ -219,13 +219,12 @@ func TestLoadRejectionText(t *testing.T) {
 		`license "NY-118402" in state "NY" belongs to provider 1487203355, not to provider 9999999999: conflict`)
 }
 
-func TestLoadKeepsTheFirstName(t *testing.T) {
+func TestLoadWarnsAboutANameWithoutTheName(t *testing.T) {
 	t.Parallel()
 	loc := loadDenver(t)
 	svc, _ := newService(t, noon(mustDate(t, "2027-03-01"), loc), loc)
 
-	// The second and the third record disagree with the first, and the third also disagrees with the second.
-	// Both warnings name the first name, so the second name did not replace it.
+	// The second and the third record disagree with the first about the name of the provider.
 	result, err := svc.Load(t.Context(), []license.Record{
 		newRecord(t, "1111111111", "Ada", "Lovelace", "NY-1", "NY", "2027-06-01"),
 		newRecord(t, "1111111111", "Grace", "Hopper", "NY-2", "NY", "2027-06-01"),
@@ -236,8 +235,11 @@ func TestLoadKeepsTheFirstName(t *testing.T) {
 	assert.Equal(t, 1, result.ProvidersAdded)
 	assert.Equal(t, 3, result.LicensesAdded)
 	require.Len(t, result.Warnings, 2)
-	require.EqualError(t, result.Warnings[0].Err, "provider 1111111111 is Ada Lovelace, but this record says Grace Hopper; the first name stays")
-	assert.EqualError(t, result.Warnings[1].Err, "provider 1111111111 is Ada Lovelace, but this record says Alan Turing; the first name stays")
+	for i, warning := range result.Warnings {
+		assert.Equal(t, i+1, warning.Index)
+		// The app logs the warning, and logs must not hold names.
+		assert.EqualError(t, warning.Err, "provider 1111111111 has a different name in this record; the name of the first record stays")
+	}
 }
 
 func TestLoadTwiceChangesNothing(t *testing.T) {

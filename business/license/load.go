@@ -107,8 +107,8 @@ func (s *Service) loadRecord(index int, record Record, result *LoadResult) {
 		st.providers[record.NPI] = provider{npi: record.NPI, firstName: record.FirstName, lastName: record.LastName}
 		result.ProvidersAdded++
 	case known.firstName != record.FirstName || known.lastName != record.LastName:
-		result.warn(index, "provider %s is %s %s, but this record says %s %s; the first name stays",
-			record.NPI, known.firstName, known.lastName, record.FirstName, record.LastName)
+		// The text names only the NPI, because the caller logs it, and logs must not hold names.
+		result.warn(index, "provider %s has a different name in this record; the name of the first record stays", record.NPI)
 	}
 
 	if !found {
