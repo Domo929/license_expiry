@@ -11,6 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Domo929/license_expiry/business/license"
 )
 
 func TestHealthz(t *testing.T) {
@@ -74,6 +76,48 @@ func TestInstrument(t *testing.T) {
 			want := "# HELP http_requests_total Number of HTTP requests, by route pattern and status code.\n" +
 				"# TYPE http_requests_total counter\n" + tc.want + "\n"
 			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(want), "http_requests_total"))
+		})
+	}
+}
+
+func TestParsePolicy(t *testing.T) {
+	t.Parallel()
+
+	defaultWindows := []license.Window{license.WindowOK, "EXPIRING_90", "EXPIRING_60", "EXPIRING_30", license.WindowExpired}
+	tests := []struct {
+		name        string
+		thresholds  string
+		wantWindows []license.Window
+		wantErr     string
+	}{
+		{name: "the default", thresholds: "90,60,30", wantWindows: defaultWindows},
+		{name: "spaces and any order", thresholds: " 30, 90 ,60", wantWindows: defaultWindows},
+		{name: "other thresholds", thresholds: "14,7", wantWindows: []license.Window{license.WindowOK, "EXPIRING_14", "EXPIRING_7", license.WindowExpired}},
+		{name: "one threshold", thresholds: "30", wantWindows: []license.Window{license.WindowOK, "EXPIRING_30", license.WindowExpired}},
+		{name: "empty", thresholds: "", wantErr: `"" is not a number of days`},
+		{name: "an empty item", thresholds: "90,,30", wantErr: `"" is not a number of days`},
+		{name: "not a number", thresholds: "90,soon", wantErr: `"soon" is not a number of days`},
+		{name: "not a whole number", thresholds: "7.5", wantErr: `"7.5" is not a number of days`},
+		{name: "zero", thresholds: "90,0", wantErr: "threshold 0 is not above 0"},
+		{name: "negative", thresholds: "-5", wantErr: "threshold -5 is not above 0"},
+		{name: "a threshold twice", thresholds: "30,60,30", wantErr: "threshold 30 is listed twice"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy, err := parsePolicy(tc.thresholds)
+
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			var got []license.Window
+			for _, row := range policy.Windows() {
+				got = append(got, row.Name)
+			}
+			assert.Equal(t, tc.wantWindows, got)
 		})
 	}
 }
