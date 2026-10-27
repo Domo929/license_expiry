@@ -1,0 +1,133 @@
+# golangci-lint v2 configuration. Reference: https://golangci-lint.run/docs/configuration/file/
+# The module path in go.mod is github.com/Domo929/license_expiry. If it changes, change it in this file too.
+version: "2"
+
+run:
+  # Lint the integration tests too.
+  build-tags:
+    - integration
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      module-path: github.com/Domo929/license_expiry
+    goimports:
+      # Put the imports of this module in their own group, after the other modules.
+      local-prefixes:
+        - github.com/Domo929/license_expiry
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - depguard
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - nolintlint
+    - perfsprint
+    - revive
+    - rowserrcheck
+    - sloglint
+    # sqlclosecheck misses `defer rows.Close()` on *sqlx.Rows in a package that does not import database/sql.
+    # In that package, use sqlx.SelectContext, or check sql.ErrNoRows.
+    - sqlclosecheck
+    - testifylint
+    - thelper
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wrapcheck
+
+  settings:
+    depguard:
+      rules:
+        # Layer rules: app imports business and foundation. business imports foundation.
+        foundation:
+          files:
+            - "${base-path}/foundation/**"
+          deny:
+            - pkg: github.com/Domo929/license_expiry/business
+              desc: foundation must not import business
+            - pkg: github.com/Domo929/license_expiry/app
+              desc: foundation must not import app
+        business:
+          files:
+            - "${base-path}/business/**"
+          deny:
+            - pkg: github.com/Domo929/license_expiry/app
+              desc: business must not import app
+        # Packages that the Go rules ban everywhere.
+        banned:
+          deny:
+            - pkg: io/ioutil
+              desc: use io and os
+            - pkg: math/rand$
+              desc: use math/rand/v2, or crypto/rand for secrets
+            - pkg: golang.org/x/exp/slices
+              desc: use slices
+            - pkg: golang.org/x/exp/maps
+              desc: use maps
+
+    errcheck:
+      exclude-functions:
+        # The rules say: defer rows.Close() right after a query, then check rows.Err().
+        # rows.Err reports the query errors, and Close returns nil after a full loop.
+        - (*database/sql.Rows).Close
+
+    exhaustive:
+      # A default case handles the other enum members on purpose.
+      default-signifies-exhaustive: true
+
+    gocritic:
+      # The default checks, plus the checks that find bugs.
+      enabled-tags:
+        - diagnostic
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+    perfsprint:
+      # fmt.Sprintf("id %s", id) reads well. The gain of + is too small to matter.
+      strconcat: false
+
+    rowserrcheck:
+      packages:
+        - github.com/jmoiron/sqlx
+
+    sloglint:
+      # main() creates the logger and passes it down. Never use the global logger.
+      no-global: all
+      key-naming-case: snake
+
+    wrapcheck:
+      # Code in this module wraps its errors already.
+      ignore-package-globs:
+        - github.com/Domo929/license_expiry/*
+      extra-ignore-sigs:
+        # Wait returns the errors of our own functions, which wrap them already.
+        - (*golang.org/x/sync/errgroup.Group).Wait(
+
+  exclusions:
+    rules:
+      # Tests use fake credentials as fixtures, and read testdata/ files through variables.
+      - path: _test\.go
+        linters:
+          - gosec
+        text: G101|G304
+
+issues:
+  # Show every issue, so one run finds all of them.
+  max-issues-per-linter: 0
+  max-same-issues: 0

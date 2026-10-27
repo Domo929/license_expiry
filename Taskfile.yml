@@ -1,0 +1,75 @@
+# Tasks for license_expiry. Run `task --list` to see them, and `task check` before each commit.
+version: "3"
+
+tasks:
+  check:
+    desc: Run every check, in order. Fix each failure.
+    cmds:
+      - task: tidy
+      - task: generate
+      - task: fix
+      - task: fmt
+      # Steps 2 to 4 can change imports, so tidy and vendor again.
+      - task: tidy
+      - task: vet
+      - task: lint
+      - task: test
+      - task: vuln
+
+  tidy:
+    desc: Tidy go.mod and go.sum, then update vendor/
+    cmds:
+      - go mod tidy
+      - task: vendor
+
+  vendor:
+    desc: Copy the dependencies into vendor/
+    cmds:
+      - go mod vendor
+
+  generate:
+    desc: Run go generate, for example to update the mocks
+    cmds:
+      - go generate ./...
+
+  fix:
+    desc: Modernize the code with go fix
+    cmds:
+      - go fix ./...
+
+  fmt:
+    desc: Format the code with gofumpt and goimports
+    cmds:
+      - golangci-lint fmt
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  test:
+    desc: Run the unit tests with the race detector
+    cmds:
+      - go test -race ./...
+
+  test:integration:
+    desc: Run the integration tests
+    cmds:
+      # -p 1: the packages can share local resources, such as ports and files.
+      # -count=1: Go cannot see those resources, so never use cached test results.
+      - go test -race -p 1 -count=1 -tags=integration ./...
+
+  vuln:
+    desc: Check the dependencies for known vulnerabilities
+    cmds:
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  build:
+    desc: Build every binary in app/ into bin/
+    cmds:
+      - go build -o bin/ ./app/...

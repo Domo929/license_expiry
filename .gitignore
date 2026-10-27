@@ -1,0 +1,22 @@
+# Binaries from task build
+/bin/
+
+# Task cache
+/.task/
+
+# Test binaries, coverage, and profiles
+*.test
+*.out
+*.cover
+*.coverprofile
+*.prof
+
+# Local env files can hold secrets.
+.env
+.env.*
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
